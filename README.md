@@ -1,0 +1,2 @@
+# Environmental-Quality-Index-and-Resources_CCA_MultivariateStatistics
+The analysis identifies the first canonical function as significant, with a canonical correlation coefficient of 0.708 and a squared correlation 50.1% of the variability between the two variable sets. The results show that water quality (IKA) and rice productivity (PP) are the most influential, canonical loadings of 0.980 and 0.714, respectively.
