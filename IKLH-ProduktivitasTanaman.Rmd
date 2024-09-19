@@ -7,7 +7,7 @@ output: pdf_document
 
 # 1. Import Data
 ```{r}
-library(readxl)
+library(readxl) # For reading data
 ```
 
 ```{r}
