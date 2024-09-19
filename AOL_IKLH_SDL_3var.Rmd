@@ -1,0 +1,461 @@
+---
+title: "AOL_MulVar_Kelompok6"
+author: "Kevin Laurent Oktavian Putra"
+date: "2024-06-05"
+output: pdf_document
+---
+
+# 1. Import Data
+```{r}
+library(readxl)
+```
+
+```{r}
+newdata <- read_excel("C:/Users/Asus/OneDrive - Bina Nusantara/BINUS_Kuliah/Semester 6/Multivariate Statistics/AOL_MulVar/IKLH_RSDL.xlsx")
+
+head(newdata)
+```
+
+
+# 2. Uji Asumsi
+
+```{r}
+library(MVN)
+library(car)
+library(psych)
+library(GGally)
+```
+
+```{r}
+library(mvShapiroTest)
+library(CCA)
+library(expm)
+library(dplyr)
+library(bestNormalize)
+library(mvoutlier)
+library(CCP)
+```
+
+
+```{r}
+pertama <- newdata[, c("IKA", "IKU", "IKTL")]
+kedua <- newdata[, c("Padi", "Jagung", "KacangTanah")]
+
+pertama
+kedua
+```
+
+## GROUP 1
+
+### Uji Normalitas
+```{r}
+#H0 = Variable pada IKLH terdistribusi multivariate normal 
+#H1 = Variable pada IKLH Tidak terdistribusi normal multivariate
+# Test for 'pertama'
+shapiro_result_pertama <- mvShapiro.Test(as.matrix(pertama))
+print(shapiro_result_pertama)
+```
+
+```{r}
+transform_pt <- summary(powerTransform(pertama))
+
+ika <- pertama[,1]^transform_pt$result[1]
+iku <- pertama[,2]^transform_pt$result[2]
+iktl <- pertama[,3]^transform_pt$result[3]
+
+transformed <- tibble(ika, iku, iktl)
+transformed <- as.data.frame(scale(transformed))
+
+mvShapiro.Test(as.matrix(transformed))
+```
+### Linearity Assumption (corr test)
+```{r}
+ggpairs(transformed) 
+```
+
+```{r}
+cor.test(transformed$IKA, transformed$IKU)
+cor.test(transformed$IKA, transformed$IKTL)
+cor.test(transformed$IKU, transformed$IKTL)
+```
+
+### Multicollinearity Test
+```{r warning=FALSE}
+pertama$DummyY <- seq(1)
+model_pertama <- lm(DummyY ~., data = pertama)
+vif(model_pertama)
+```
+
+## GROUP 2
+### Uji Normalitas
+
+```{r}
+# Test for 'kedua'
+#H0 = Variable pada SDL terdistribusi multivariate normal 
+#H1 = Variable pada SDL Tidak terdistribusi normal multivariate
+shapiro_result_kedua <- mvShapiro.Test(as.matrix(kedua))
+print(shapiro_result_kedua)
+```
+
+### Linearity Assumption
+
+```{r}
+ggpairs(kedua)
+```
+
+```{r}
+cor.test(kedua$Padi, kedua$Jagung)
+cor.test(kedua$Padi, kedua$KacangTanah)
+cor.test(kedua$Jagung, kedua$KacangTanah)
+```
+
+### Multicollinearity Test
+```{r}
+kedua$DummyY <- seq(1)
+model_kedua <- lm(DummyY ~., data = kedua)
+vif(model_kedua)
+```
+
+# 3. Canonical Correlation Analysis
+
+```{r}
+# Melakukan CCA
+kedua <- newdata[, c("Padi", "Jagung", "KacangTanah")] # Buat ini ulang untuk hapus dummy yang ditambahkan ke kelompok kedua
+cca_result_transformed <- cc(transformed, kedua)
+cca_result_transformed
+```
+
+```{r}
+wilks_test <- p.asym(cca_result_transformed$cor, nrow(transformed), ncol(transformed), ncol(transformed2))
+print(wilks_test)
+```
+
+
+```{r}
+# Extract canonical correlations
+canonical_correlations <- cca_result_transformed$cor
+
+# Wilks' Lambda Test (Overall Significance Test)
+# Inputs needed are the canonical correlations, the sample size, and the number of variables in each set
+n <- nrow(cca_result_transformed$scores$xscores) # sample size
+p <- ncol(cca_result_transformed$scores$xscores) # number of X variables
+q <- ncol(cca_result_transformed$scores$yscores) # number of Y variables
+
+# Perform overall significance test
+wilks_test <- p.asym(canonical_correlations, n, p, q, tstat = "Wilks")
+print(wilks_test)
+```
+## CARA 2
+```{r}
+# Menggabungkan data kelompok satu dan kelompok dua menjadi satu frame
+data <- cbind(transformed, transformed2)
+print(data)
+```
+
+
+### Hitung matrix korelasi antara variabel X dan Y
+```{r}
+rho = cor(data)
+rho
+```
+
+### Lakukan Matrix Partisi
+
+```{r}
+rho11 = cor(data)[1:3,1:3]
+rho11
+```
+
+```{r}
+rho12 = cor(data)[1:3,4:6]
+rho12
+```
+
+```{r}
+rho21 = cor(data)[4:6,1:3]
+rho21
+```
+
+```{r}
+rho22 = cor(data)[4:6,4:6]
+rho22
+```
+
+Hitung $\rho_{11}^{-1/2}$
+
+```{r}
+library(expm)
+
+# Kita SQRT kan, lalu abru diinverse untuk mendapatakaan nilai rho-nya
+inverse_sqrtrho11 = solve(sqrtm(rho11))
+inverse_sqrtrho11
+```
+
+Hitung $\rho_{22}^{-1}$
+
+```{r}
+inverse_rho22 = solve(rho22)
+inverse_rho22
+```
+
+Misal matrix $A = \rho_{11}^{-1/2}\cdot\rho_{12}\cdot \rho_{22}^{-1}\cdot\rho_{21}\cdot\rho_{11}^{-1/2}$
+
+```{r}
+A = inverse_sqrtrho11 %*% rho12 %*% inverse_rho22 %*% rho21 %*% inverse_sqrtrho11
+A
+```
+
+Hitung nilai eigen dari matrix A sebagai koefisien korelasi kuadrat
+
+```{r}
+eigen(A)
+```
+
+Akar dari nilai eigen terbesar adalah nilai koefisien korelasi kanonik antara input dan yield
+
+```{r}
+(r2 = eigen(A)$values)
+(r = sqrt(r2))
+```
+
+# 4. Uji Hipotesis Independence Kanonik
+
+$$
+\begin{aligned}
+H_0&: \boldsymbol{\Sigma_{yx}}=\boldsymbol{0} \text{ (tidak ada hubungan linear yang signifikan antar variabel y dan variabel x)}\\
+H_1&: \boldsymbol{\Sigma_{yx}}\ne\boldsymbol{0} \text{ (ada hubungan linear yang signifikan antar variabel y dan variabel x)}
+\end{aligned}
+$$
+
+Test Statistics
+
+$$
+\boldsymbol\Lambda_1=\frac{|\boldsymbol S|}{|\boldsymbol S_{yy}|| \boldsymbol S_{xx}|}=\frac{|\boldsymbol R|}{|\boldsymbol R_{yy}|| \boldsymbol R_{xx}|}
+$$
+
+Reject $H_0$ if $\boldsymbol\Lambda_1\leq\boldsymbol\Lambda_\alpha$
+
+```{r}
+lambda.test = det(rho)/(det(rho22)*det(rho11))
+lambda.test
+```
+
+$$
+\Lambda_\alpha=\Lambda_{q, n-1-q}\\\text{where }p\le q  ; \  p,q \text{ are number of variables in each group}
+$$
+
+n = 34\
+p = 3\
+q = 4\
+lambda = p,q,n-1-q = 3,4,29
+
+```{r}
+lambda.crit <- 0.563
+lambda.crit
+```
+
+```{r}
+lambda.test <= lambda.crit
+```
+
+Tolak H0
+
+## Uji Parsial (MANUAL)
+```{r}
+lambda1 = (1-r[1]^2)*(1-r[2]^2)*(1-r[3]^2)
+lambda1
+
+lambda2 = (1-r[2]^2)*(1-r[3]^2)
+lambda2
+
+lambda3 = (1-r[3]^2)
+lambda3
+
+lambda_k <- c(lambda1, lambda2, lambda3)
+```
+### Hitung Nilai W
+```{r}
+p = 3
+q = 4
+n = 34
+
+# w
+w = n - (1/2)*(p + q + 3)
+w
+```
+### Hitung Nilai t untuk semua K
+```{r}
+# t untuk k = 1
+t_1 = sqrt(((p-1+1)^2 * (q-1+1)^2 - 4)/((p-1+1)^2 + (q-1+1)^2 - 5))
+
+# t untuk k = 2
+t_2 = sqrt(((p-2+1)^2 * (q-2+1)^2 - 4)/((p-2+1)^2 + (q-2+1)^2 - 5))
+
+# t untuk k = 3
+t_3 = sqrt(((p-3+1)^2 * (q-3+1)^2 - 4)/((p-3+1)^2 + (q-3+1)^2 - 5))
+
+t_k <- c(t_1, t_2, t_3)
+t_k
+```
+### Hitung Nilai df1 untuk semua K
+```{r}
+# df1 untuk k = 1
+df1_1 = (p-1+1)*(q-1+1)
+
+# df1 untuk k = 2
+df1_2 = (p-2+1)*(q-2+1)
+
+# df1 untuk k = 3
+df1_3 = (p-3+1)*(q-3+1)
+
+df1 <- c(df1_1, df1_2, df1_3)
+df1
+```
+### Hitung nilai df2 untuk semua K
+```{r}
+# df2 untuk k = 1
+df2_1 = w * t_1 - (1/2) * ((p-1+1) * (q-1+1)) + 1
+
+# df2 untuk k = 2
+df2_2 = w * t_2 - (1/2) * ((p-2+1) * (q-2+1)) + 1
+
+# df2 untuk k = 3
+df2_3 = w * t_3 - (1/2) * ((p-3+1) * (q-3+1)) + 1
+
+df2 <- c(df2_1, df2_2, df2_3)
+df2
+```
+### Hitung nilai f hitung
+```{r}
+# F hitung untuk k = 1
+f_1 = ((1-lambda1^(1/t_1)) / lambda1^(1/t_1)) * (df2_1 / df1_1)
+
+# F hitung untuk k = 2
+f_2 = ((1-lambda2^(1/t_2)) / lambda2^(1/t_2)) * (df2_2 / df1_2)
+
+# F hitung untuk k = 3
+f_3 = ((1-lambda3^(1/t_3)) / lambda3^(1/t_3)) * (df2_3 / df1_3)
+
+f_k <- c(f_1, f_2, f_3)
+f_k
+```
+```{r}
+ftable <- c(2.020732026, 2.530694205, 4.170876786)
+```
+
+
+```{r}
+# Result
+result <- data.frame(lambda_k, t_k, df1, df2, f_k, ftable)
+result
+```
+Tolak H0 jika F hitung > F table
+Berdasarkan hasil maka dapat ditarik kesimpulan bahwa:
+- Dikarenakan nilai F hitung > F table yaitu 2.5669208 > 2.020732 maka tolak H0. Artinya, minimal ada 1 pasangan canonical variate yang saling berkorelasi atau untuk  fungsi kanonik pertama ada hubungan antara kelompok variabel x dan kelompok variabel y. 
+- Dikarenakan nilai F hitung > F table yaitu 2.580316 > 2.530694 maka tolak H0. Artinya, minimal ada 1 pasangan canonical variate yang saling berkorelasi atau untuk fungsi kanonik kedua ada hubungan antara kelompok variabel x dan kelompok variabel y. 
+- Dikarenakan nilai F hitung < F table yaitu 0.045 < 4.5431 maka gagal tolak H0. Artinya, untuk fungsi kanonik ketiga tidak terdapat hubungan antara kelompok variabel x dan kelompok variabel y.
+
+## Uji Parsial (PACKAGE)
+```{r}
+# Perform Wilks' Lambda test using CCP package
+n <- 34
+p <- 3
+q <- 4
+wilks_result <- p.asym(r, n, p, q, tstat = "Wilks")
+
+# Print the results
+wilks_result
+
+## F-test
+F_1 = wilks_result$approx[1]
+F_2 = wilks_result$approx[2]
+F_3 = wilks_result$approx[3]
+
+## F-Table
+f_table_1 = qf(p=0.05, wilks_result$df1[1], wilks_result$df2[1], lower.tail = FALSE)
+f_table_2 = qf(p=0.05, wilks_result$df1[2], wilks_result$df2[2], lower.tail = FALSE)
+f_table_3 = qf(p=0.05, wilks_result$df1[3], wilks_result$df2[3], lower.tail = FALSE)
+
+F_1
+F_2
+F_3
+
+
+f_table_1
+f_table_2
+f_table_3
+```
+
+```{r}
+(e = eigen(A)$vector)
+```
+
+
+```{r}
+e1 = eigen(A)$vector[,1]
+(u1 = e1 %*% inverse_sqrtrho11)
+```
+
+```{r}
+e2 = eigen(A)$vector[,2]
+(u2 = e2 %*% inverse_sqrtrho11)
+```
+
+
+```{r}
+e3 = eigen(A)$vector[,3]
+(u3 = e3 %*% inverse_sqrtrho11)
+```
+### Membuat matriks B
+```{r}
+(inverse_sqrtrho22 = solve(sqrtm(rho22)))
+(inverse_rho11 = solve(rho11))
+```
+
+```{r}
+B = inverse_sqrtrho22 %*% rho21 %*% inverse_rho11 %*% rho12 %*% inverse_sqrtrho22
+B
+```
+
+```{r}
+(f = eigen(B)$vector)
+```
+
+```{r}
+f1 = eigen(B)$vector[,1]
+(v1 = f1 %*% inverse_sqrtrho22)
+```
+
+```{r}
+f2 = eigen(B)$vector[,2]
+(v2 = f2 %*% inverse_sqrtrho22)
+```
+
+```{r}
+f3 = eigen(B)$vector[,3]
+(v3 = f3 %*% inverse_sqrtrho22)
+```
+
+```{r}
+# Muatan kanonik untuk variabel X
+canonical_loadings_X1 = rho11 %*% t(u1)
+canonical_loadings_X2 = rho11 %*% t(u2)
+
+# Muatan kanonik untuk variabel Y
+canonical_loadings_Y1 = rho22 %*% t(v1)
+canonical_loadings_Y2 = rho22 %*% t(v2)
+```
+
+```{r}
+library(knitr)
+
+# Membuat data frame untuk muatan kanonik
+muatan_kanonik <- data.frame(
+  Variabel = c("IKA", "IKU", "IKTL", "Padi", "Jagung", "KacangTanah"),
+  Fungsi_Kanonik_1 = c(canonical_loadings_X1, canonical_loadings_Y1)
+)
+
+# Menampilkan data frame
+print(muatan_kanonik)
+```
+
